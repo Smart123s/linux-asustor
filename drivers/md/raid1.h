@@ -138,7 +138,9 @@ struct r1conf {
 	 */
 	sector_t		cluster_sync_low;
 	sector_t		cluster_sync_high;
-
+#ifdef ASUSTOR_PATCH
+	int			all_nonrot;
+#endif ///ASUSTOR_PATCH
 };
 
 /*

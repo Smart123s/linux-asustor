@@ -7864,7 +7864,6 @@ static int raid5_remove_disk(struct mddev *mddev, struct md_rdev *rdev)
 	int number = rdev->raid_disk;
 	struct md_rdev **rdevp;
 	struct disk_info *p = conf->disks + number;
-
 	print_raid5_conf(conf);
 	if (test_bit(Journal, &rdev->flags) && conf->log) {
 		/*
@@ -7887,7 +7886,6 @@ static int raid5_remove_disk(struct mddev *mddev, struct md_rdev *rdev)
 		rdevp = &p->replacement;
 	else
 		return 0;
-
 	if (number >= conf->raid_disks &&
 	    conf->reshape_progress == MaxSector)
 		clear_bit(In_sync, &rdev->flags);

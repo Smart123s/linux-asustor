@@ -479,9 +479,7 @@ struct disk_info {
 /*
  * Stripe cache
  */
-
 #define NR_STRIPES		256
-
 #if PAGE_SIZE == DEFAULT_STRIPE_SIZE
 #define STRIPE_SIZE		PAGE_SIZE
 #define STRIPE_SHIFT		(PAGE_SHIFT - 9)

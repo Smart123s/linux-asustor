@@ -179,6 +179,27 @@ module_param(ahci_em_messages, bool, 0444);
 /* add other LED protocol types when they become supported */
 MODULE_PARM_DESC(ahci_em_messages,
 	"AHCI Enclosure Management Message control (0 = off, 1 = on)");
+	
+#ifdef ASUSTOR_PATCH
+#define MAX_AHCI_SW_ACTIVITY_ENTRIES 16
+typedef struct _AHCI_SW_ACTIVITY AHCI_SW_ACTIVITY;
+typedef void (*AHCI_SW_ACTIVITY_CB) (AHCI_SW_ACTIVITY *pact);
+typedef struct _AHCI_SW_ACTIVITY
+{
+    unsigned short vendor_id;
+    unsigned short device_id;
+    unsigned short port;
+	unsigned short print_id;
+    unsigned activity;
+    AHCI_SW_ACTIVITY_CB callback;
+    void *callback_param;
+} AHCI_SW_ACTIVITY;
+static AHCI_SW_ACTIVITY ahci_sw_activity_group[MAX_AHCI_SW_ACTIVITY_ENTRIES] = {{0}};
+void ahci_get_sw_activity_group (AHCI_SW_ACTIVITY **array_ptr, int *count)
+{
+}
+EXPORT_SYMBOL(ahci_get_sw_activity_group);
+#endif ///ASUSTOR_PATCH
 
 /* device sleep idle timeout in ms */
 static int devslp_idle_timeout __read_mostly = 1000;

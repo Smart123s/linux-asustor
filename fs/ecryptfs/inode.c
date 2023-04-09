@@ -742,7 +742,6 @@ static int truncate_upper(struct dentry *dentry, struct iattr *ia,
 	/* Switch on growing or shrinking file */
 	if (ia->ia_size > i_size) {
 		char zero[] = { 0x00 };
-
 		lower_ia->ia_valid &= ~ATTR_SIZE;
 		/* Write a single 0 at the last position of the file;
 		 * this triggers code that will fill in 0's throughout
@@ -757,7 +756,6 @@ static int truncate_upper(struct dentry *dentry, struct iattr *ia,
 		 * PAGE_SIZE with zeros. */
 		size_t num_zeros = (PAGE_SIZE
 				    - (ia->ia_size & ~PAGE_MASK));
-
 		if (!(crypt_stat->flags & ECRYPTFS_ENCRYPTED)) {
 			truncate_setsize(inode, ia->ia_size);
 			lower_ia->ia_size = ia->ia_size;

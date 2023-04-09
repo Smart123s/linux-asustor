@@ -19,6 +19,10 @@
 #include "disk-io.h"
 #include "props.h"
 #include "locking.h"
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include "asacl_btrfs.h"
+#endif /* ASUSTOR_PATCH_ASACL */
 
 int btrfs_getxattr(struct inode *inode, const char *name,
 				void *buffer, size_t size)
@@ -456,6 +460,12 @@ const struct xattr_handler *btrfs_xattr_handlers[] = {
 	&posix_acl_access_xattr_handler,
 	&posix_acl_default_xattr_handler,
 #endif
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#ifdef CONFIG_BTRFS_FS_ASACL
+	&Asacl_Xattr_Handler,
+#endif /* CONFIG_BTRFS_FS_ASACL */
+#endif /* ASUSTOR_PATCH_ASACL */
 	&btrfs_trusted_xattr_handler,
 	&btrfs_user_xattr_handler,
 	&btrfs_btrfs_xattr_handler,

@@ -3408,6 +3408,9 @@ void si_swapinfo(struct sysinfo *val)
 	val->totalswap = total_swap_pages + nr_to_be_unused;
 	spin_unlock(&swap_lock);
 }
+#ifdef ASUSTOR_PATCH
+EXPORT_SYMBOL(si_swapinfo);
+#endif ///ASUSTOR_PATCH
 
 /*
  * Verify that a swap entry is valid and increment its swap map count.

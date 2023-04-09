@@ -1909,10 +1909,11 @@ static int mb_find_extent(struct ext4_buddy *e4b, int block,
 	if (ex->fe_start + ex->fe_len > EXT4_CLUSTERS_PER_GROUP(e4b->bd_sb)) {
 		/* Should never happen! (but apparently sometimes does?!?) */
 		WARN_ON(1);
-		ext4_error(e4b->bd_sb, "corruption or bug in mb_find_extent "
-			   "block=%d, order=%d needed=%d ex=%u/%d/%d@%u",
-			   block, order, needed, ex->fe_group, ex->fe_start,
-			   ex->fe_len, ex->fe_logical);
+		ext4_grp_locked_error(e4b->bd_sb, e4b->bd_group, 0, 0,
+			"corruption or bug in mb_find_extent "
+			"block=%d, order=%d needed=%d ex=%u/%d/%d@%u",
+			block, order, needed, ex->fe_group, ex->fe_start,
+			ex->fe_len, ex->fe_logical);
 		ex->fe_len = 0;
 		ex->fe_start = 0;
 		ex->fe_group = 0;
@@ -2897,6 +2898,34 @@ const struct seq_operations ext4_mb_seq_groups_ops = {
 	.stop   = ext4_mb_seq_groups_stop,
 	.show   = ext4_mb_seq_groups_show,
 };
+
+#ifdef ASUSTOR_PATCH
+static int ext4_mb_seq_uninit_show(struct seq_file *seq, void *v)
+{
+	return 0;
+}
+
+static void *ext4_mb_seq_uninit_start(struct seq_file *seq, loff_t *pos)
+{
+	return NULL;
+}
+
+static void *ext4_mb_seq_uninit_next(struct seq_file *seq, void *v, loff_t *pos)
+{
+	return NULL;
+}
+
+static void ext4_mb_seq_uninit_stop(struct seq_file *seq, void *v)
+{
+}
+
+const struct seq_operations ext4_seq_uninit_itable_fops = {
+	.start  = ext4_mb_seq_uninit_start,
+	.next   = ext4_mb_seq_uninit_next,
+	.stop   = ext4_mb_seq_uninit_stop,
+	.show   = ext4_mb_seq_uninit_show,
+};
+#endif ///ASUSTOR_PATCH
 
 int ext4_seq_mb_stats_show(struct seq_file *seq, void *offset)
 {

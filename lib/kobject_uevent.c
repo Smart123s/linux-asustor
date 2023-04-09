@@ -678,6 +678,14 @@ int add_uevent_var(struct kobj_uevent_env *env, const char *format, ...)
 }
 EXPORT_SYMBOL_GPL(add_uevent_var);
 
+#ifdef ASUSTOR_PATCH
+int  Asustor_Netlink(void *szSataErrLog)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(Asustor_Netlink);
+#endif ///ASUSTOR_PATCH
+
 #if defined(CONFIG_NET)
 static int uevent_net_broadcast(struct sock *usk, struct sk_buff *skb,
 				struct netlink_ext_ack *extack)

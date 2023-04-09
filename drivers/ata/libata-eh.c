@@ -22,7 +22,9 @@
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_dbg.h>
 #include "../scsi/scsi_transport_api.h"
-
+#ifdef ASUSTOR_PATCH
+#include <linux/sysstat.h>
+#endif ///ASUSTOR_PATCH
 #include <linux/libata.h>
 
 #include <trace/events/libata.h>
@@ -3453,10 +3455,8 @@ static int ata_eh_schedule_probe(struct ata_device *dev)
 	 */
 	ata_ering_record(&dev->ering, 0, AC_ERR_OTHER);
 	ata_ering_map(&dev->ering, ata_count_probe_trials_cb, &trials);
-
 	if (trials > ATA_EH_PROBE_TRIALS)
 		sata_down_spd_limit(link, 1);
-
 	return 1;
 }
 
@@ -3545,11 +3545,9 @@ int ata_eh_recover(struct ata_port *ap, ata_prereset_fn_t prereset,
 	unsigned long flags, deadline;
 
 	DPRINTK("ENTER\n");
-
 	/* prep for recovery */
 	ata_for_each_link(link, ap, EDGE) {
 		struct ata_eh_context *ehc = &link->eh_context;
-
 		/* re-enable link? */
 		if (ehc->i.action & ATA_EH_ENABLE_LINK) {
 			ata_eh_about_to_do(link, NULL, ATA_EH_ENABLE_LINK);

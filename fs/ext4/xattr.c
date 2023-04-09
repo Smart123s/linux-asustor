@@ -61,6 +61,10 @@
 #include "ext4.h"
 #include "xattr.h"
 #include "acl.h"
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include "asacl_ext4.h"
+#endif /* ASUSTOR_PATCH_ASACL */
 
 #ifdef EXT4_XATTR_DEBUG
 # define ea_idebug(inode, fmt, ...)					\
@@ -94,6 +98,13 @@ static const struct xattr_handler * const ext4_xattr_handler_map[] = {
 	[EXT4_XATTR_INDEX_SECURITY]	     = &ext4_xattr_security_handler,
 #endif
 	[EXT4_XATTR_INDEX_HURD]		     = &ext4_xattr_hurd_handler,
+
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#ifdef CONFIG_EXT4_FS_ASACL
+	[EXT4_XATTR_INDEX_ASACL]         = &Asacl_Xattr_Handler,
+#endif /* CONFIG_EXT4_FS_ASACL */
+#endif /* ASUSTOR_PATCH_ASACL */
 };
 
 const struct xattr_handler *ext4_xattr_handlers[] = {
@@ -107,6 +118,13 @@ const struct xattr_handler *ext4_xattr_handlers[] = {
 	&ext4_xattr_security_handler,
 #endif
 	&ext4_xattr_hurd_handler,
+
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#ifdef CONFIG_EXT4_FS_ASACL
+	&Asacl_Xattr_Handler,
+#endif /* CONFIG_EXT4_FS_ASACL */
+#endif /* ASUSTOR_PATCH_ASACL */
 	NULL
 };
 

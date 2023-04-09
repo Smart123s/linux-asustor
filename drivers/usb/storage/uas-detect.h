@@ -95,6 +95,7 @@ static int uas_use_uas_driver(struct usb_interface *intf,
 	 * (*) ASM1051 chips do work with UAS with some disks (with the
 	 *     US_FL_NO_REPORT_OPCODES quirk), but are broken with other disks
 	 */
+
 	if (le16_to_cpu(udev->descriptor.idVendor) == 0x174c &&
 			(le16_to_cpu(udev->descriptor.idProduct) == 0x5106 ||
 			 le16_to_cpu(udev->descriptor.idProduct) == 0x55aa)) {

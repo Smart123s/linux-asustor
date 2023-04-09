@@ -35,6 +35,10 @@
 #include "xattr.h"
 #include "acl.h"
 #include "truncate.h"
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include "asacl_ext4.h"
+#endif /* ASUSTOR_PATCH_ASACL */
 
 static bool ext4_dio_supported(struct inode *inode)
 {
@@ -933,7 +937,14 @@ const struct inode_operations ext4_file_inode_operations = {
 	.setattr	= ext4_setattr,
 	.getattr	= ext4_file_getattr,
 	.listxattr	= ext4_listxattr,
+#ifdef ASUSTOR_PATCH_ASACL
+	/* Patch purpose: ASACL */
+	.get_acl	= ext4_get_posix_acl,
+	.get_asacl	= Ext4_Get_Asacl,
+	.set_asacl	= Ext4_Set_Asacl,
+#else /* ASUSTOR_PATCH_ASACL */
 	.get_acl	= ext4_get_acl,
+#endif /* ASUSTOR_PATCH_ASACL */
 	.set_acl	= ext4_set_acl,
 	.fiemap		= ext4_fiemap,
 	.fileattr_get	= ext4_fileattr_get,

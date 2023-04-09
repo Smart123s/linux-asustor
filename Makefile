@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
 PATCHLEVEL = 13
-SUBLEVEL = 0
+SUBLEVEL = x
+TRUESUBLEVEL = 19
 EXTRAVERSION =
 NAME = Opossums on Parade
+ASUSTOR = "asustor"
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -128,6 +130,11 @@ endif
 
 $(if $(word 2, $(KBUILD_EXTMOD)), \
 	$(error building multiple external modules is not supported))
+
+# Remove trailing slashes
+ifneq ($(filter %/, $(KBUILD_EXTMOD)),)
+KBUILD_EXTMOD := $(shell dirname $(KBUILD_EXTMOD).)
+endif
 
 export KBUILD_EXTMOD
 
@@ -355,7 +362,7 @@ include $(srctree)/scripts/Kbuild.include
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 KERNELVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)
-export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION
+export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION TRUESUBLEVEL
 
 include $(srctree)/scripts/subarch.include
 
@@ -505,7 +512,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs \
 		   -Werror=implicit-function-declaration -Werror=implicit-int \
 		   -Werror=return-type -Wno-format-security \
 		   -std=gnu89
-KBUILD_CPPFLAGS := -D__KERNEL__
+KBUILD_CPPFLAGS := -D__KERNEL__ -DASUSTOR_PATCH -DASUSTOR_PATCH_NOGPL -DASUSTOR_PATCH_FSNOTIFY -DASUSTOR_PATCH_ASACL
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS_MODULE  := -DMODULE
@@ -716,11 +723,12 @@ $(KCONFIG_CONFIG):
 # This exploits the 'multi-target pattern rule' trick.
 # The syncconfig should be executed only once to make all the targets.
 # (Note: use the grouped target '&:' when we bump to GNU Make 4.3)
-quiet_cmd_syncconfig = SYNC    $@
-      cmd_syncconfig = $(MAKE) -f $(srctree)/Makefile syncconfig
-
+#
+# Do not use $(call cmd,...) here. That would suppress prompts from syncconfig,
+# so you cannot notice that Kconfig is waiting for the user input.
 %/config/auto.conf %/config/auto.conf.cmd %/generated/autoconf.h: $(KCONFIG_CONFIG)
-	+$(call cmd,syncconfig)
+	$(Q)$(kecho) "  SYNC    $@"
+	$(Q)$(MAKE) -f $(srctree)/Makefile syncconfig
 else # !may-sync-config
 # External modules and some install targets need include/generated/autoconf.h
 # and include/config/auto.conf but do not care if they are up-to-date.
@@ -1039,7 +1047,7 @@ LDFLAGS_vmlinux	+= $(call ld-option, -X,)
 endif
 
 ifeq ($(CONFIG_RELR),y)
-LDFLAGS_vmlinux	+= --pack-dyn-relocs=relr
+LDFLAGS_vmlinux	+= --pack-dyn-relocs=relr --use-android-relr-tags
 endif
 
 # We never want expected sections to be placed heuristically by the
@@ -1288,22 +1296,16 @@ define filechk_utsrelease.h
 endef
 
 define filechk_version.h
-	if [ $(SUBLEVEL) -gt 255 ]; then                                 \
-		echo \#define LINUX_VERSION_CODE $(shell                 \
-		expr $(VERSION) \* 65536 + $(PATCHLEVEL) \* 256 + 255); \
-	else                                                             \
-		echo \#define LINUX_VERSION_CODE $(shell                 \
-		expr $(VERSION) \* 65536 + $(PATCHLEVEL) \* 256 + $(SUBLEVEL)); \
-	fi;                                                              \
-	echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) +  \
-	((c) > 255 ? 255 : (c)))';                                       \
+	echo \#define LINUX_VERSION_CODE $(shell                 \
+	expr $(VERSION) \* 65536 + $(PATCHLEVEL) \* 256 ); \
+	echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8))'; \
 	echo \#define LINUX_VERSION_MAJOR $(VERSION);                    \
 	echo \#define LINUX_VERSION_PATCHLEVEL $(PATCHLEVEL);            \
-	echo \#define LINUX_VERSION_SUBLEVEL $(SUBLEVEL)
+	echo \#define LINUX_VERSION_SUBLEVEL $(TRUESUBLEVEL)
 endef
 
 $(version_h): PATCHLEVEL := $(if $(PATCHLEVEL), $(PATCHLEVEL), 0)
-$(version_h): SUBLEVEL := $(if $(SUBLEVEL), $(SUBLEVEL), 0)
+$(version_h): SUBLEVEL := $(if $(TRUESUBLEVEL), $(TRUESUBLEVEL), 0)
 $(version_h): FORCE
 	$(call filechk,version.h)
 

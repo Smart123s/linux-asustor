@@ -96,6 +96,9 @@ void fsnotify_get_mark(struct fsnotify_mark *mark)
 	WARN_ON_ONCE(!refcount_read(&mark->refcnt));
 	refcount_inc(&mark->refcnt);
 }
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_get_mark);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 static __u32 *fsnotify_conn_mask_p(struct fsnotify_mark_connector *conn)
 {
@@ -276,7 +279,11 @@ void fsnotify_put_mark(struct fsnotify_mark *mark)
 	queue_delayed_work(system_unbound_wq, &reaper_work,
 			   FSNOTIFY_REAPER_DELAY);
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_put_mark);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_put_mark);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Get mark reference when we found the mark via lockless traversal of object
@@ -433,7 +440,11 @@ void fsnotify_destroy_mark(struct fsnotify_mark *mark,
 	mutex_unlock(&group->mark_mutex);
 	fsnotify_free_mark(mark);
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_destroy_mark);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_destroy_mark);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Sorting function for lists of fsnotify marks.
@@ -687,7 +698,11 @@ int fsnotify_add_mark(struct fsnotify_mark *mark, fsnotify_connp_t *connp,
 	mutex_unlock(&group->mark_mutex);
 	return ret;
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_add_mark);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_add_mark);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Given a list of marks, find the mark associated with given group. If found
@@ -714,7 +729,11 @@ struct fsnotify_mark *fsnotify_find_mark(fsnotify_connp_t *connp,
 	spin_unlock(&conn->lock);
 	return NULL;
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_find_mark);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_find_mark);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /* Clear any marks in a group with given type mask */
 void fsnotify_clear_marks_by_group(struct fsnotify_group *group,
@@ -813,7 +832,12 @@ void fsnotify_init_mark(struct fsnotify_mark *mark,
 	mark->group = group;
 	WRITE_ONCE(mark->connector, NULL);
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_init_mark);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_init_mark);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
+
 
 /*
  * Destroy all marks in destroy_list, waits for SRCU period to finish before

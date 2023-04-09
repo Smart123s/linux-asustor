@@ -39,9 +39,18 @@
 #include <linux/bitops.h>
 #include <linux/init_task.h>
 #include <linux/uaccess.h>
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include <linux/asacl.h>
+#endif /* ASUSTOR_PATCH_ASACL */
 
 #include "internal.h"
 #include "mount.h"
+
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+#define	ASUSTOR_FSNOTIFY_ONLY
+#include "notify/fsnotify.h"
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /* [Feb-1997 T. Schoebel-Theuer]
  * Fundamental changes in the pathname lookup mechanisms (namei)
@@ -208,6 +217,9 @@ getname(const char __user * filename)
 {
 	return getname_flags(filename, 0, NULL);
 }
+#ifdef ASUSTOR_PATCH
+EXPORT_SYMBOL(getname);
+#endif ///ASUSTOR_PATCH
 
 struct filename *
 getname_kernel(const char * filename)
@@ -244,6 +256,9 @@ getname_kernel(const char * filename)
 
 	return result;
 }
+#ifdef ASUSTOR_PATCH
+EXPORT_SYMBOL(getname_kernel);
+#endif ///ASUSTOR_PATCH
 
 void putname(struct filename *name)
 {
@@ -275,8 +290,14 @@ void putname(struct filename *name)
  * On non-idmapped mounts or if permission checking is to be performed on the
  * raw inode simply passs init_user_ns.
  */
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+static int check_posix_acl(struct user_namespace *mnt_userns,
+		     struct inode *inode, int mask)
+#else /* ASUSTOR_PATCH_ASACL */
 static int check_acl(struct user_namespace *mnt_userns,
 		     struct inode *inode, int mask)
+#endif /* ASUSTOR_PATCH_ASACL */
 {
 #ifdef CONFIG_FS_POSIX_ACL
 	struct posix_acl *acl;
@@ -303,6 +324,27 @@ static int check_acl(struct user_namespace *mnt_userns,
 
 	return -EAGAIN;
 }
+
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+
+// Create a new "check_acl" function that will support POSIX acl or ASACL depends on the situation.
+static int check_acl(struct user_namespace *mnt_userns, struct inode *inode, int mask)
+{
+	if (IS_POSIXACL(inode))
+	{
+		return check_posix_acl(mnt_userns, inode, mask);
+	}
+	else if (IS_ASACL(inode))
+	{
+		return Check_Asacl(mnt_userns, inode, mask);
+	}
+	else
+	{
+		return -EAGAIN;
+	}
+}
+#endif /* ASUSTOR_PATCH_ASACL */
 
 /**
  * acl_permission_check - perform basic UNIX permission checking
@@ -2831,7 +2873,6 @@ static inline int may_create(struct user_namespace *mnt_userns,
 		return -ENOENT;
 	if (!fsuidgid_has_mapping(dir->i_sb, mnt_userns))
 		return -EOVERFLOW;
-
 	return inode_permission(mnt_userns, dir, MAY_WRITE | MAY_EXEC);
 }
 
@@ -2899,6 +2940,7 @@ int vfs_create(struct user_namespace *mnt_userns, struct inode *dir,
 	       struct dentry *dentry, umode_t mode, bool want_excl)
 {
 	int error = may_create(mnt_userns, dir, dentry);
+
 	if (error)
 		return error;
 
@@ -3734,6 +3776,7 @@ retry:
 
 	if (!IS_POSIXACL(path.dentry->d_inode))
 		mode &= ~current_umask();
+
 	error = security_path_mknod(&path, dentry, mode, dev);
 	if (error)
 		goto out;
@@ -3831,6 +3874,7 @@ retry:
 
 	if (!IS_POSIXACL(path.dentry->d_inode))
 		mode &= ~current_umask();
+
 	error = security_path_mkdir(&path, dentry, mode);
 	if (!error) {
 		struct user_namespace *mnt_userns;
@@ -3920,6 +3964,7 @@ long do_rmdir(int dfd, struct filename *name)
 	struct qstr last;
 	int type;
 	unsigned int lookup_flags = 0;
+
 retry:
 	name = filename_parentat(dfd, name, lookup_flags,
 				&path, &last, &type);
@@ -3951,6 +3996,7 @@ retry:
 		error = -ENOENT;
 		goto exit3;
 	}
+	
 	error = security_path_rmdir(&path, dentry);
 	if (error)
 		goto exit3;
@@ -4059,6 +4105,7 @@ long do_unlinkat(int dfd, struct filename *name)
 	struct inode *inode = NULL;
 	struct inode *delegated_inode = NULL;
 	unsigned int lookup_flags = 0;
+
 retry:
 	name = filename_parentat(dfd, name, lookup_flags, &path, &last, &type);
 	if (IS_ERR(name))
@@ -4088,9 +4135,11 @@ retry_deleg:
 		error = security_path_unlink(&path, dentry);
 		if (error)
 			goto exit2;
+
 		mnt_userns = mnt_user_ns(path.mnt);
 		error = vfs_unlink(mnt_userns, path.dentry->d_inode, dentry,
 				   &delegated_inode);
+
 exit2:
 		dput(dentry);
 	}
@@ -4123,6 +4172,9 @@ slashes:
 		error = -ENOTDIR;
 	goto exit2;
 }
+#ifdef ASUSTOR_PATCH
+EXPORT_SYMBOL(do_unlinkat);
+#endif
 
 SYSCALL_DEFINE3(unlinkat, int, dfd, const char __user *, pathname, int, flag)
 {
@@ -4259,8 +4311,8 @@ int vfs_link(struct dentry *old_dentry, struct user_namespace *mnt_userns,
 
 	if (!inode)
 		return -ENOENT;
-
 	error = may_create(mnt_userns, dir, new_dentry);
+
 	if (error)
 		return error;
 
@@ -4369,6 +4421,7 @@ retry:
 		goto out_dput;
 	error = vfs_link(old_path.dentry, mnt_userns, new_path.dentry->d_inode,
 			 new_dentry, &delegated_inode);
+
 out_dput:
 	done_path_create(&new_path, new_dentry);
 	if (delegated_inode) {
@@ -4464,6 +4517,7 @@ int vfs_rename(struct renamedata *rd)
 		return 0;
 
 	error = may_delete(rd->old_mnt_userns, old_dir, old_dentry, is_dir);
+
 	if (error)
 		return error;
 
@@ -4694,6 +4748,7 @@ retry_deleg:
 	rd.delegated_inode = &delegated_inode;
 	rd.flags	   = flags;
 	error = vfs_rename(&rd);
+
 exit5:
 	dput(new_dentry);
 exit4:

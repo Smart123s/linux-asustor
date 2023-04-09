@@ -752,10 +752,8 @@ void __cfg80211_connect_result(struct net_device *dev,
 		cfg80211_sme_free(wdev);
 		return;
 	}
-
 	if (WARN_ON(!cr->bss))
 		return;
-
 	wdev->current_bss = bss_from_pub(cr->bss);
 
 	if (!(wdev->wiphy->flags & WIPHY_FLAG_HAS_STATIC_WEP))

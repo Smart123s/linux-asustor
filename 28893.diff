@@ -1,0 +1,90 @@
+Index: fs/file_table.c
+===================================================================
+--- fs/file_table.c	(revision 79)
++++ fs/file_table.c	(revision 80)
+@@ -375,6 +375,7 @@
+ }
+ 
+ EXPORT_SYMBOL(fput);
++EXPORT_SYMBOL(__fput_sync);
+ 
+ void __init files_init(void)
+ {
+Index: include/trace/events/sunrpc.h
+===================================================================
+--- include/trace/events/sunrpc.h	(revision 79)
++++ include/trace/events/sunrpc.h	(revision 80)
+@@ -1006,7 +1006,6 @@
+ DEFINE_RPC_XPRT_LIFETIME_EVENT(disconnect_auto);
+ DEFINE_RPC_XPRT_LIFETIME_EVENT(disconnect_done);
+ DEFINE_RPC_XPRT_LIFETIME_EVENT(disconnect_force);
+-DEFINE_RPC_XPRT_LIFETIME_EVENT(disconnect_cleanup);
+ DEFINE_RPC_XPRT_LIFETIME_EVENT(destroy);
+ 
+ DECLARE_EVENT_CLASS(rpc_xprt_event,
+Index: net/sunrpc/xprt.c
+===================================================================
+--- net/sunrpc/xprt.c	(revision 79)
++++ net/sunrpc/xprt.c	(revision 80)
+@@ -909,12 +909,7 @@
+ 	if (!xprt_lock_write(xprt, task))
+ 		return;
+ 
+-	if (test_and_clear_bit(XPRT_CLOSE_WAIT, &xprt->state)) {
+-		trace_xprt_disconnect_cleanup(xprt);
+-		xprt->ops->close(xprt);
+-	}
+-
+-	if (!xprt_connected(xprt)) {
++	if (!xprt_connected(xprt) && !test_bit(XPRT_CLOSE_WAIT, &xprt->state)) {
+ 		task->tk_rqstp->rq_connect_cookie = xprt->connect_cookie;
+ 		rpc_sleep_on_timeout(&xprt->pending, task, NULL,
+ 				xprt_request_timeout(task->tk_rqstp));
+Index: net/sunrpc/xprtsock.c
+===================================================================
+--- net/sunrpc/xprtsock.c	(revision 79)
++++ net/sunrpc/xprtsock.c	(revision 80)
+@@ -851,7 +851,7 @@
+ 
+ 	/* Close the stream if the previous transmission was incomplete */
+ 	if (xs_send_request_was_aborted(transport, req)) {
+-		xs_close(xprt);
++		xprt_force_disconnect(xprt);
+ 		return -ENOTCONN;
+ 	}
+ 
+@@ -889,7 +889,7 @@
+ 			-status);
+ 		fallthrough;
+ 	case -EPIPE:
+-		xs_close(xprt);
++		xprt_force_disconnect(xprt);
+ 		status = -ENOTCONN;
+ 	}
+ 
+@@ -1176,6 +1176,16 @@
+ 
+ 	if (sk == NULL)
+ 		return;
++	/*
++	 * Make sure we're calling this in a context from which it is safe
++	 * to call __fput_sync(). In practice that means rpciod and the
++	 * system workqueue.
++	 */
++	if (!(current->flags & PF_WQ_WORKER)) {
++		WARN_ON_ONCE(1);
++		set_bit(XPRT_CLOSE_WAIT, &xprt->state);
++		return;
++	}
+ 
+ 	if (atomic_read(&transport->xprt.swapper))
+ 		sk_clear_memalloc(sk);
+@@ -1199,7 +1209,7 @@
+ 	mutex_unlock(&transport->recv_mutex);
+ 
+ 	trace_rpc_socket_close(xprt, sock);
+-	fput(filp);
++	__fput_sync(filp);
+ 
+ 	xprt_disconnect_done(xprt);
+ }

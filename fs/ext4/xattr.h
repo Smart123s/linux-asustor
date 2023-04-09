@@ -24,6 +24,10 @@
 #define EXT4_XATTR_INDEX_SECURITY	        6
 #define EXT4_XATTR_INDEX_SYSTEM			7
 #define EXT4_XATTR_INDEX_RICHACL		8
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#define EXT4_XATTR_INDEX_ASACL			8
+#endif /* ASUSTOR_PATCH_ASACL */
 #define EXT4_XATTR_INDEX_ENCRYPTION		9
 #define EXT4_XATTR_INDEX_HURD			10 /* Reserved for Hurd */
 

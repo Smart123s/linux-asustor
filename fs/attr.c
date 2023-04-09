@@ -72,6 +72,26 @@ static bool chgrp_ok(struct user_namespace *mnt_userns,
 	return false;
 }
 
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include <linux/asacl.h>
+
+static int Check_Permission_On_Asacl(struct user_namespace *ptMntUserns, struct inode *ptInode, int mMask)
+{
+	return 0;
+}
+
+static bool If_Allow_To_Change_Owner(struct user_namespace *ptMntUserns, struct inode *ptInode, kuid_t tNewUid)
+{
+	return 0;
+}
+
+static bool If_Allow_To_Change_Owned_Group(struct user_namespace *ptMntUserns, struct inode *ptInode, kgid_t tNewGid)
+{
+	return 0;
+}
+#endif /* ASUSTOR_PATCH_ASACL */
+
 /**
  * setattr_prepare - check if attribute changes to a dentry are allowed
  * @mnt_userns:	user namespace of the mount the inode was found from
@@ -123,8 +143,10 @@ int setattr_prepare(struct user_namespace *mnt_userns, struct dentry *dentry,
 
 	/* Make sure a caller can chmod. */
 	if (ia_valid & ATTR_MODE) {
+
 		if (!inode_owner_or_capable(mnt_userns, inode))
 			return -EPERM;
+
 		/* Also check the setgid bit! */
                if (!in_group_p((ia_valid & ATTR_GID) ? attr->ia_gid :
                                 i_gid_into_mnt(mnt_userns, inode)) &&

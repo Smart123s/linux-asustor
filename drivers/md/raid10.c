@@ -469,12 +469,12 @@ static void raid10_end_write_request(struct bio *bio)
 			/*
 			 * When the device is faulty, it is not necessary to
 			 * handle write error.
-			 * For failfast, this is the only remaining device,
-			 * We need to retry the write without FailFast.
 			 */
 			if (!test_bit(Faulty, &rdev->flags))
 				set_bit(R10BIO_WriteError, &r10_bio->state);
 			else {
+				/* Fail the request */
+				set_bit(R10BIO_Degraded, &r10_bio->state);
 				r10_bio->devs[slot].bio = NULL;
 				to_put = bio;
 				dec_rdev = 1;
@@ -1706,6 +1706,11 @@ retry_discard:
 	} else
 		r10_bio->master_bio = (struct bio *)first_r10bio;
 
+	/*
+	 * first select target devices under rcu_lock and
+	 * inc refcount on their rdev.  Record them by setting
+	 * bios[x] to bio
+	 */
 	rcu_read_lock();
 	for (disk = 0; disk < geo->raid_disks; disk++) {
 		struct md_rdev *rdev = rcu_dereference(conf->mirrors[disk].rdev);
@@ -1737,9 +1742,6 @@ retry_discard:
 	for (disk = 0; disk < geo->raid_disks; disk++) {
 		sector_t dev_start, dev_end;
 		struct bio *mbio, *rbio = NULL;
-		struct md_rdev *rdev = rcu_dereference(conf->mirrors[disk].rdev);
-		struct md_rdev *rrdev = rcu_dereference(
-			conf->mirrors[disk].replacement);
 
 		/*
 		 * Now start to calculate the start and end address for each disk.
@@ -1769,9 +1771,12 @@ retry_discard:
 
 		/*
 		 * It only handles discard bio which size is >= stripe size, so
-		 * dev_end > dev_start all the time
+		 * dev_end > dev_start all the time.
+		 * It doesn't need to use rcu lock to get rdev here. We already
+		 * add rdev->nr_pending in the first loop.
 		 */
 		if (r10_bio->devs[disk].bio) {
+			struct md_rdev *rdev = conf->mirrors[disk].rdev;
 			mbio = bio_clone_fast(bio, GFP_NOIO, &mddev->bio_set);
 			mbio->bi_end_io = raid10_end_discard_request;
 			mbio->bi_private = r10_bio;
@@ -1784,6 +1789,7 @@ retry_discard:
 			bio_endio(mbio);
 		}
 		if (r10_bio->devs[disk].repl_bio) {
+			struct md_rdev *rrdev = conf->mirrors[disk].replacement;
 			rbio = bio_clone_fast(bio, GFP_NOIO, &mddev->bio_set);
 			rbio->bi_end_io = raid10_end_discard_request;
 			rbio->bi_private = r10_bio;
@@ -2128,7 +2134,6 @@ static int raid10_remove_disk(struct mddev *mddev, struct md_rdev *rdev)
 	int number = rdev->raid_disk;
 	struct md_rdev **rdevp;
 	struct raid10_info *p = conf->mirrors + number;
-
 	print_conf(conf);
 	if (rdev == p->rdev)
 		rdevp = &p->rdev;
@@ -2136,7 +2141,6 @@ static int raid10_remove_disk(struct mddev *mddev, struct md_rdev *rdev)
 		rdevp = &p->replacement;
 	else
 		return 0;
-
 	if (test_bit(In_sync, &rdev->flags) ||
 	    atomic_read(&rdev->nr_pending)) {
 		err = -EBUSY;
@@ -2652,7 +2656,6 @@ static void fix_read_error(struct r10conf *conf, struct mddev *mddev, struct r10
 	if (atomic_read(&rdev->read_errors) > max_read_errors) {
 		char b[BDEVNAME_SIZE];
 		bdevname(rdev->bdev, b);
-
 		pr_notice("md/raid10:%s: %s: Raid device exceeded read_error threshold [cur %d:max %d]\n",
 			  mdname(mddev), b,
 			  atomic_read(&rdev->read_errors), max_read_errors);

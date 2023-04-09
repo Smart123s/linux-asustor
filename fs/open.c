@@ -35,6 +35,11 @@
 
 #include "internal.h"
 
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+#define	ASUSTOR_FSNOTIFY_ONLY
+#include "notify/fsnotify.h"
+#endif	//ASUSTOR_PATCH_FSNOTIFY
+
 int do_truncate(struct user_namespace *mnt_userns, struct dentry *dentry,
 		loff_t length, unsigned int time_attrs, struct file *filp)
 {
@@ -133,6 +138,7 @@ retry:
 	error = user_path_at(AT_FDCWD, pathname, lookup_flags, &path);
 	if (!error) {
 		error = vfs_truncate(&path, length);
+
 		path_put(&path);
 	}
 	if (retry_estale(error, lookup_flags)) {
@@ -153,6 +159,53 @@ COMPAT_SYSCALL_DEFINE2(truncate, const char __user *, path, compat_off_t, length
 	return do_sys_truncate(path, length);
 }
 #endif
+
+#ifdef ASUSTOR_PATCH
+int do_file_ftruncate(struct file *file, loff_t length, int small)
+{
+	struct inode *inode;
+	struct dentry *dentry;
+	int error;
+
+	error = -EINVAL;
+	if (length < 0)
+		goto out;
+	error = -EBADF;
+	if (!file)
+		goto out;
+
+	/* explicitly opened as large or we are on 64-bit box */
+	if (file->f_flags & O_LARGEFILE)
+		small = 0;
+
+	dentry = file->f_path.dentry;
+	inode = dentry->d_inode;
+	error = -EINVAL;
+	if (!S_ISREG(inode->i_mode) || !(file->f_mode & FMODE_WRITE))
+		goto out;
+
+	error = -EINVAL;
+	/* Cannot ftruncate over 2^31 bytes without large file support */
+	if (small && length > MAX_NON_LFS)
+		goto out;
+
+	error = -EPERM;
+	/* Check IS_APPEND on real upper inode */
+	if (IS_APPEND(file_inode(file)))
+		goto out;
+	sb_start_write(inode->i_sb);
+	error = locks_verify_truncate(inode, file, length);
+	if (!error)
+		error = security_path_truncate(&file->f_path);
+	if (!error)
+		error = do_truncate(file_mnt_user_ns(file), dentry, length,
+				    ATTR_MTIME | ATTR_CTIME, file);
+	sb_end_write(inode->i_sb);
+out:
+	return error;
+}
+EXPORT_SYMBOL_GPL(do_file_ftruncate);
+#endif ///ASUSTOR_PATCH
 
 long do_sys_ftruncate(unsigned int fd, loff_t length, int small)
 {
@@ -195,6 +248,7 @@ long do_sys_ftruncate(unsigned int fd, loff_t length, int small)
 	if (!error)
 		error = do_truncate(file_mnt_user_ns(f.file), dentry, length,
 				    ATTR_MTIME | ATTR_CTIME, f.file);
+
 	sb_end_write(inode->i_sb);
 out_putf:
 	fdput(f);
@@ -584,6 +638,7 @@ retry_deleg:
 	newattrs.ia_valid = ATTR_MODE | ATTR_CTIME;
 	error = notify_change(mnt_user_ns(path->mnt), path->dentry,
 			      &newattrs, &delegated_inode);
+
 out_unlock:
 	inode_unlock(inode);
 	if (delegated_inode) {
@@ -681,6 +736,7 @@ retry_deleg:
 	if (!error)
 		error = notify_change(mnt_userns, path->dentry, &newattrs,
 				      &delegated_inode);
+
 	inode_unlock(inode);
 	if (delegated_inode) {
 		error = break_deleg_wait(&delegated_inode);
@@ -1002,12 +1058,20 @@ inline struct open_how build_open_how(int flags, umode_t mode)
 
 inline int build_open_flags(const struct open_how *how, struct open_flags *op)
 {
-	int flags = how->flags;
+	u64 flags = how->flags;
+	u64 strip = FMODE_NONOTIFY | O_CLOEXEC;
 	int lookup_flags = 0;
 	int acc_mode = ACC_MODE(flags);
 
-	/* Must never be set by userspace */
-	flags &= ~(FMODE_NONOTIFY | O_CLOEXEC);
+	BUILD_BUG_ON_MSG(upper_32_bits(VALID_OPEN_FLAGS),
+			 "struct open_flags doesn't yet handle flags > 32 bits");
+
+	/*
+	 * Strip flags that either shouldn't be set by userspace like
+	 * FMODE_NONOTIFY or that aren't relevant in determining struct
+	 * open_flags like O_CLOEXEC.
+	 */
+	flags &= ~strip;
 
 	/*
 	 * Older syscalls implicitly clear all of the invalid flags or argument

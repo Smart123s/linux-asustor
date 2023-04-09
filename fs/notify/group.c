@@ -92,6 +92,9 @@ void fsnotify_destroy_group(struct fsnotify_group *group)
 
 	fsnotify_put_group(group);
 }
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_destroy_group);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Get reference to a group.
@@ -100,6 +103,9 @@ void fsnotify_get_group(struct fsnotify_group *group)
 {
 	refcount_inc(&group->refcnt);
 }
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_get_group);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Drop a reference to a group.  Free it if it's through.
@@ -109,7 +115,11 @@ void fsnotify_put_group(struct fsnotify_group *group)
 	if (refcount_dec_and_test(&group->refcnt))
 		fsnotify_final_destroy_group(group);
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_put_group);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_put_group);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 static struct fsnotify_group *__fsnotify_alloc_group(
 				const struct fsnotify_ops *ops, gfp_t gfp)
@@ -144,7 +154,11 @@ struct fsnotify_group *fsnotify_alloc_group(const struct fsnotify_ops *ops)
 {
 	return __fsnotify_alloc_group(ops, GFP_KERNEL);
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(fsnotify_alloc_group);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(fsnotify_alloc_group);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Create a new fsnotify_group and hold a reference for the group returned.

@@ -407,7 +407,6 @@ static struct block_device *add_partition(struct gendisk *disk, int partno,
 	if (err)
 		goto out_del;
 	bdev_add(bdev, devt);
-
 	/* suppress uevent if the disk suppresses it */
 	if (!dev_get_uevent_suppress(ddev))
 		kobject_uevent(&pdev->kobj, KOBJ_ADD);

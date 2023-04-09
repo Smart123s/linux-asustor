@@ -110,6 +110,11 @@
 #include <linux/nsproxy.h>
 #include "tty.h"
 
+#ifdef ASUSTOR_PATCH
+#include <linux/seq_file.h>
+#include <linux/proc_fs.h>
+#endif ///ASUSTOR_PATCH
+
 #undef TTY_DEBUG_HANGUP
 #ifdef TTY_DEBUG_HANGUP
 # define tty_debug_hangup(tty, f, args...)	tty_debug(tty, f, ##args)
@@ -2294,8 +2299,6 @@ static int tty_fasync(int fd, struct file *filp, int on)
  *	Locking:
  *		Called functions take tty_ldiscs_lock
  *		current->signal->tty check is safe without locks
- *
- *	FIXME: may race normal receive processing
  */
 
 static int tiocsti(struct tty_struct *tty, char __user *p)
@@ -2311,8 +2314,10 @@ static int tiocsti(struct tty_struct *tty, char __user *p)
 	ld = tty_ldisc_ref_wait(tty);
 	if (!ld)
 		return -EIO;
+	tty_buffer_lock_exclusive(tty->port);
 	if (ld->ops->receive_buf)
 		ld->ops->receive_buf(tty, &ch, &mbz, 1);
+	tty_buffer_unlock_exclusive(tty->port);
 	tty_ldisc_deref(ld);
 	return 0;
 }
@@ -3637,7 +3642,6 @@ int __init tty_init(void)
 					    cons_dev_groups, "console");
 	if (IS_ERR(consdev))
 		consdev = NULL;
-
 #ifdef CONFIG_VT
 	vty_init(&console_fops);
 #endif

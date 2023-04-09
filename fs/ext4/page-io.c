@@ -338,7 +338,6 @@ static void ext4_end_bio(struct bio *bio)
 
 	if (bio->bi_status) {
 		struct inode *inode = io_end->inode;
-
 		ext4_warning(inode->i_sb, "I/O error %d writing to inode %lu "
 			     "starting block %llu)",
 			     bio->bi_status, inode->i_ino,

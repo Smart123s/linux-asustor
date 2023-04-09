@@ -41,6 +41,10 @@
 
 #include "xattr.h"
 #include "acl.h"
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include "asacl_ext4.h"
+#endif /* ASUSTOR_PATCH_ASACL */
 
 #include <trace/events/ext4.h>
 /*
@@ -2517,7 +2521,7 @@ again:
 				goto journal_error;
 			err = ext4_handle_dirty_dx_node(handle, dir,
 							frame->bh);
-			if (err)
+			if (restart || err)
 				goto journal_error;
 		} else {
 			struct dx_root *dxroot;
@@ -4287,7 +4291,14 @@ const struct inode_operations ext4_dir_inode_operations = {
 	.setattr	= ext4_setattr,
 	.getattr	= ext4_getattr,
 	.listxattr	= ext4_listxattr,
+#ifdef ASUSTOR_PATCH_ASACL
+	/* Patch purpose: ASACL */
+	.get_acl	= ext4_get_posix_acl,
+	.get_asacl	= Ext4_Get_Asacl,
+	.set_asacl	= Ext4_Set_Asacl,
+#else /* ASUSTOR_PATCH_ASACL */
 	.get_acl	= ext4_get_acl,
+#endif /* ASUSTOR_PATCH_ASACL */
 	.set_acl	= ext4_set_acl,
 	.fiemap         = ext4_fiemap,
 	.fileattr_get	= ext4_fileattr_get,
@@ -4298,6 +4309,13 @@ const struct inode_operations ext4_special_inode_operations = {
 	.setattr	= ext4_setattr,
 	.getattr	= ext4_getattr,
 	.listxattr	= ext4_listxattr,
+#ifdef ASUSTOR_PATCH_ASACL
+	/* Patch purpose: ASACL */
+	.get_acl	= ext4_get_posix_acl,
+	.get_asacl	= Ext4_Get_Asacl,
+	.set_asacl	= Ext4_Set_Asacl,
+#else /* ASUSTOR_PATCH_ASACL */
 	.get_acl	= ext4_get_acl,
+#endif /* ASUSTOR_PATCH_ASACL */
 	.set_acl	= ext4_set_acl,
 };

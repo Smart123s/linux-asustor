@@ -344,7 +344,9 @@ struct mddev {
 
 	struct md_thread		*thread;	/* management thread */
 	struct md_thread		*sync_thread;	/* doing resync or reconstruct */
-
+#ifdef ASUSTOR_PATCH
+	struct md_thread		*reshape_thread;	/* doing check_reshape */
+#endif	///ASUSTOR_PATCH
 	/* 'last_sync_action' is initialized to "none".  It is set when a
 	 * sync operation (i.e "data-check", "requested-resync", "resync",
 	 * "recovery", or "reshape") is started.  It holds this value even
@@ -487,7 +489,6 @@ struct mddev {
 	struct bio_set			sync_set; /* for sync operations like
 						   * metadata and bitmap writes
 						   */
-	mempool_t			md_io_pool;
 
 	/* Generic flush handling.
 	 * The last to finish preflush schedules a worker to submit

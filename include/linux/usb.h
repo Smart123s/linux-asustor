@@ -686,7 +686,11 @@ struct usb_device {
 	char *serial;
 
 	struct list_head filelist;
-
+#ifdef ASUSTOR_PATCH
+#ifdef CONFIG_USB_DEVICE_CLASS
+    struct device *usb_classdev;
+#endif ///CONFIG_USB_DEVICE_CLASS
+#endif ///ASUSTOR_PATCH
 	int maxchild;
 
 	u32 quirks;
@@ -711,6 +715,9 @@ struct usb_device {
 
 	u16 hub_delay;
 	unsigned use_generic_driver:1;
+#ifdef ASUSTOR_PATCH
+	atomic_t as_lock;	/* usb device lock */
+#endif ///ASUSTOR_PATCH
 };
 #define	to_usb_device(d) container_of(d, struct usb_device, dev)
 

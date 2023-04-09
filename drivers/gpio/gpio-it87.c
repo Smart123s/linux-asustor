@@ -25,6 +25,9 @@
 #define NO_DEV_ID	0xffff
 #define IT8613_ID	0x8613
 #define IT8620_ID	0x8620
+#ifdef ASUSTOR_PATCH
+#define IT8625_ID 	0x8625
+#endif ///ASUSTOR_PATCH
 #define IT8628_ID	0x8628
 #define IT8718_ID       0x8718
 #define IT8728_ID	0x8728
@@ -44,6 +47,10 @@
 #define LDNREG		0x07
 #define CHIPID		0x20
 #define CHIPREV		0x22
+
+#ifdef ASUSTOR_PATCH
+bool to_load_it87(void);
+#endif ///ASUSTOR_PATCH
 
 /**
  * struct it87_gpio - it87-specific GPIO chip
@@ -168,7 +175,6 @@ static int it87_gpio_request(struct gpio_chip *chip, unsigned gpio_num)
 	 * newly-exported GPIO interfaces are set to input.
 	 */
 	superio_clear_mask(mask, group + it87_gpio->output_base);
-
 	superio_exit();
 
 exit:
@@ -258,6 +264,37 @@ exit:
 	return rc;
 }
 
+#ifdef ASUSTOR_PATCH
+#define GPLED_TO_LOCATION(GP_LED) ({ ((GP_LED / 10) << 3) + (GP_LED % 10); })
+#define LOCATION_TO_GPLED(LOCATION) ({ ((LOCATION >> 3) * 10) + (LOCATION & 0x07); })
+
+static const u8 IT87_REG_GP_LED_CTRL_PIN_MAPPING[] = {0xf8, 0xfa};
+
+int it87_gpio_led_blink_get(u8 index)
+{
+	return 0;
+}
+EXPORT_SYMBOL(it87_gpio_led_blink_get);
+
+int it87_gpio_led_blink_set(u8 index, u32 gpio)
+{
+	return 0;
+}
+EXPORT_SYMBOL(it87_gpio_led_blink_set);
+
+int it87_gpio_led_blink_freq_get(u8 index)
+{
+	return 0;
+}
+EXPORT_SYMBOL(it87_gpio_led_blink_freq_get);
+
+int it87_gpio_led_blink_freq_set(u8 index, u8 val)
+{
+	return 0;
+}
+EXPORT_SYMBOL(it87_gpio_led_blink_freq_set);
+#endif ///ASUSTOR_PATCH
+
 static const struct gpio_chip it87_template_chip = {
 	.label			= KBUILD_MODNAME,
 	.owner			= THIS_MODULE,
@@ -287,6 +324,7 @@ static int __init it87_gpio_init(void)
 	superio_exit();
 
 	it87_gpio->chip = it87_template_chip;
+	
 
 	switch (chip_type) {
 	case IT8613_ID:

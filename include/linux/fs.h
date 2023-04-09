@@ -104,6 +104,19 @@ typedef int (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 #define MAY_CHDIR		0x00000040
 /* called from RCU mode, don't block */
 #define MAY_NOT_BLOCK		0x00000080
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#define MAY_CREATE_FILE		0x00000100
+#define MAY_CREATE_DIR		0x00000200
+#define MAY_DELETE_CHILD	0x00000400
+#define MAY_DELETE_SELF		0x00000800
+#define MAY_TAKE_OWNERSHIP	0x00001000
+#define MAY_CHMOD			0x00002000
+#define MAY_SET_TIMES		0x00004000
+
+#define AS_FALSE			0
+#define AS_TRUE				1
+#endif /* ASUSTOR_PATCH_ASACL */
 
 /*
  * flags in file.f_mode.  Note that FMODE_READ and FMODE_WRITE must correspond
@@ -579,6 +592,23 @@ static inline void mapping_allow_writable(struct address_space *mapping)
 #define i_size_ordered_init(inode) do { } while (0)
 #endif
 
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+struct _t_asacl_;
+
+static inline struct _t_asacl_ *
+uncached_asacl_sentinel(struct task_struct *task)
+{
+	return (void *)task + 1;
+}
+
+static inline bool
+is_uncached_asacl(struct _t_asacl_ *asacl)
+{
+	return (long)asacl & 1;
+}
+#endif /* ASUSTOR_PATCH_ASACL */
+
 struct posix_acl;
 #define ACL_NOT_CACHED ((void *)(-1))
 #define ACL_DONT_CACHE ((void *)(-3))
@@ -615,10 +645,31 @@ struct inode {
 	kgid_t			i_gid;
 	unsigned int		i_flags;
 
+#ifdef ASUSTOR_PATCH_ASACL
+	/* Patch purpose: ASACL */
+
+	union
+	{
+#ifdef CONFIG_FS_POSIX_ACL
+		struct
+		{
+			struct posix_acl	*i_acl;
+			struct posix_acl	*i_default_acl;
+		};
+#endif
+#ifdef CONFIG_FS_ASACL
+		struct _t_asacl_  *i_asacl;
+#endif /* CONFIG_FS_ASACL */
+	};
+
+#else /* ASUSTOR_PATCH_ASACL */
+
 #ifdef CONFIG_FS_POSIX_ACL
 	struct posix_acl	*i_acl;
 	struct posix_acl	*i_default_acl;
 #endif
+
+#endif /* ASUSTOR_PATCH_ASACL */
 
 	const struct inode_operations	*i_op;
 	struct super_block	*i_sb;
@@ -1397,6 +1448,10 @@ extern int send_sigurg(struct fown_struct *fown);
 #define SB_I_UNTRUSTED_MOUNTER		0x00000040
 
 #define SB_I_SKIP_SYNC	0x00000100	/* Skip superblock at global sync */
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#define SB_I_ASACL		0x01000000	/* Flag to indicate if supporting ASACL. */
+#endif /* ASUSTOR_PATCH_ASACL */
 
 /* Possible states of 'frozen' field */
 enum {
@@ -2066,6 +2121,11 @@ struct inode_operations {
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
 	int (*permission) (struct user_namespace *, struct inode *, int);
 	struct posix_acl * (*get_acl)(struct inode *, int);
+#ifdef ASUSTOR_PATCH_ASACL
+	/* Patch purpose: ASACL */
+	struct _t_asacl_ * (*get_asacl)(struct inode *);
+	int (*set_asacl)(struct inode *, struct _t_asacl_ *, int);
+#endif /* ASUSTOR_PATCH_ASACL */
 
 	int (*readlink) (struct dentry *, char __user *,int);
 
@@ -2232,6 +2292,25 @@ static inline bool sb_rdonly(const struct super_block *sb) { return sb->s_flags 
 #define IS_APPEND(inode)	((inode)->i_flags & S_APPEND)
 #define IS_IMMUTABLE(inode)	((inode)->i_flags & S_IMMUTABLE)
 #define IS_POSIXACL(inode)	__IS_FLG(inode, SB_POSIXACL)
+
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+
+#ifdef CONFIG_FS_ASACL
+
+#define IS_ASACL(inode)		((inode)->i_sb->s_iflags & SB_I_ASACL)
+// When defined, we use check_acl for acl permission check and prevent the VFS from applying the umask.
+#define IS_ACL(inode)		((IS_ASACL(inode)) || (IS_POSIXACL(inode)))
+
+#else /* CONFIG_FS_ASACL */
+
+#define IS_ASACL(inode)		0
+// When defined, we use check_acl for acl permission check and prevent the VFS from applying the umask.
+#define IS_ACL(inode)		IS_POSIXACL(inode)
+
+#endif /* CONFIG_FS_ASACL */
+
+#endif /* ASUSTOR_PATCH_ASACL */
 
 #define IS_DEADDIR(inode)	((inode)->i_flags & S_DEAD)
 #define IS_NOCMTIME(inode)	((inode)->i_flags & S_NOCMTIME)
@@ -2761,6 +2840,10 @@ static inline struct user_namespace *file_mnt_user_ns(struct file *file)
 	return mnt_user_ns(file->f_path.mnt);
 }
 extern long vfs_truncate(const struct path *, loff_t);
+#ifdef ASUSTOR_PATCH
+extern int do_file_ftruncate(struct file *file, loff_t length, int small);
+extern long do_unlinkat(int dfd, struct filename *name);
+#endif ///ASUSTOR_PATCH
 int do_truncate(struct user_namespace *, struct dentry *, loff_t start,
 		unsigned int time_attrs, struct file *filp);
 extern int vfs_fallocate(struct file *file, int mode, loff_t offset,

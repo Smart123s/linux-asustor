@@ -8,6 +8,11 @@
 #include <linux/compat.h>
 #include <asm/unistd.h>
 
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+#define	ASUSTOR_FSNOTIFY_ONLY
+#include "notify/fsnotify.h"
+#endif	//ASUSTOR_PATCH_FSNOTIFY
+
 static bool nsec_valid(long nsec)
 {
 	if (nsec == UTIME_OMIT || nsec == UTIME_NOW)
@@ -64,6 +69,7 @@ retry_deleg:
 	inode_lock(inode);
 	error = notify_change(mnt_user_ns(path->mnt), path->dentry, &newattrs,
 			      &delegated_inode);
+
 	inode_unlock(inode);
 	if (delegated_inode) {
 		error = break_deleg_wait(&delegated_inode);

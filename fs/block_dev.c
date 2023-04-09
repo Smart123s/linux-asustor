@@ -36,6 +36,10 @@
 #include <linux/suspend.h>
 #include "internal.h"
 
+#ifdef ASUSTOR_PATCH
+#include <scsi/scsi_device.h>
+#endif ///ASUSTOR_PATCH
+
 struct bdev_inode {
 	struct block_device bdev;
 	struct inode vfs_inode;
@@ -812,6 +816,8 @@ static void bdev_free_inode(struct inode *inode)
 	free_percpu(bdev->bd_stats);
 	kfree(bdev->bd_meta_info);
 
+	if (!bdev_is_partition(bdev))
+		kfree(bdev->bd_disk);
 	kmem_cache_free(bdev_cachep, BDEV_I(inode));
 }
 

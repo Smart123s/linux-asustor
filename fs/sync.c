@@ -34,7 +34,6 @@ static int __sync_filesystem(struct super_block *sb, int wait)
 		sync_inodes_sb(sb);
 	else
 		writeback_inodes_sb(sb, WB_REASON_SYNC);
-
 	if (sb->s_op->sync_fs)
 		sb->s_op->sync_fs(sb, wait);
 	return __sync_blockdev(sb->s_bdev, wait);

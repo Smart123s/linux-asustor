@@ -634,6 +634,7 @@ static void tcf_block_offload_init(struct flow_block_offload *bo,
 	bo->block_shared = shared;
 	bo->extack = extack;
 	bo->sch = sch;
+	bo->cb_list_head = &flow_block->cb_list;
 	INIT_LIST_HEAD(&bo->cb_list);
 }
 
@@ -1531,7 +1532,7 @@ static inline int __tcf_classify(struct sk_buff *skb,
 				 u32 *last_executed_chain)
 {
 #ifdef CONFIG_NET_CLS_ACT
-	const int max_reclassify_loop = 4;
+	const int max_reclassify_loop = 16;
 	const struct tcf_proto *first_tp;
 	int limit = 0;
 
@@ -1952,9 +1953,9 @@ static int tc_new_tfilter(struct sk_buff *skb, struct nlmsghdr *n,
 	bool prio_allocate;
 	u32 parent;
 	u32 chain_index;
-	struct Qdisc *q = NULL;
+	struct Qdisc *q;
 	struct tcf_chain_info chain_info;
-	struct tcf_chain *chain = NULL;
+	struct tcf_chain *chain;
 	struct tcf_block *block;
 	struct tcf_proto *tp;
 	unsigned long cl;
@@ -1982,6 +1983,8 @@ replay:
 	tp = NULL;
 	cl = 0;
 	block = NULL;
+	q = NULL;
+	chain = NULL;
 
 	if (prio == 0) {
 		/* If no priority is provided by the user,
@@ -2802,8 +2805,8 @@ static int tc_ctl_chain(struct sk_buff *skb, struct nlmsghdr *n,
 	struct tcmsg *t;
 	u32 parent;
 	u32 chain_index;
-	struct Qdisc *q = NULL;
-	struct tcf_chain *chain = NULL;
+	struct Qdisc *q;
+	struct tcf_chain *chain;
 	struct tcf_block *block;
 	unsigned long cl;
 	int err;
@@ -2813,6 +2816,7 @@ static int tc_ctl_chain(struct sk_buff *skb, struct nlmsghdr *n,
 		return -EPERM;
 
 replay:
+	q = NULL;
 	err = nlmsg_parse_deprecated(n, sizeof(*t), tca, TCA_MAX,
 				     rtm_tca_policy, extack);
 	if (err < 0)
@@ -2904,7 +2908,7 @@ replay:
 		break;
 	case RTM_GETCHAIN:
 		err = tc_chain_notify(chain, skb, n->nlmsg_seq,
-				      n->nlmsg_seq, n->nlmsg_type, true);
+				      n->nlmsg_flags, n->nlmsg_type, true);
 		if (err < 0)
 			NL_SET_ERR_MSG(extack, "Failed to send chain notify message");
 		break;

@@ -37,6 +37,10 @@
 #ifdef CONFIG_SPARC
 #include <linux/sunserialcore.h>
 #endif
+#ifdef ASUSTOR_PATCH
+#include <linux/seq_file.h>
+#include <linux/proc_fs.h>
+#endif ///ASUSTOR_PATCH
 
 #include <asm/irq.h>
 
@@ -582,7 +586,6 @@ static void univ8250_console_write(struct console *co, const char *s,
 				   unsigned int count)
 {
 	struct uart_8250_port *up = &serial8250_ports[co->index];
-
 	serial8250_console_write(up, s, count);
 }
 
@@ -1169,7 +1172,6 @@ static int __init serial8250_init(void)
 
 	if (nr_uarts == 0)
 		return -ENODEV;
-
 	serial8250_isa_init_ports();
 
 	pr_info("Serial: 8250/16550 driver, %d ports, IRQ sharing %sabled\n",
@@ -1223,7 +1225,6 @@ out:
 static void __exit serial8250_exit(void)
 {
 	struct platform_device *isa_dev = serial8250_isa_devs;
-
 	/*
 	 * This tells serial8250_unregister_port() not to re-register
 	 * the ports (thereby making serial8250_isa_driver permanently

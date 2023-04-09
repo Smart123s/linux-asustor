@@ -54,6 +54,10 @@
 #include "acl.h"
 #include "mballoc.h"
 #include "fsmap.h"
+#ifdef ASUSTOR_PATCH_ASACL
+/* Patch purpose: ASACL */
+#include "asacl_ext4.h"
+#endif /* ASUSTOR_PATCH_ASACL */
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ext4.h>
@@ -705,15 +709,23 @@ static void flush_stashed_error_work(struct work_struct *work)
 	 * ext4 error handling code during handling of previous errors.
 	 */
 	if (!sb_rdonly(sbi->s_sb) && journal) {
+		struct buffer_head *sbh = sbi->s_sbh;
 		handle = jbd2_journal_start(journal, 1);
 		if (IS_ERR(handle))
 			goto write_directly;
-		if (jbd2_journal_get_write_access(handle, sbi->s_sbh)) {
+		if (jbd2_journal_get_write_access(handle, sbh)) {
 			jbd2_journal_stop(handle);
 			goto write_directly;
 		}
 		ext4_update_super(sbi->s_sb);
-		if (jbd2_journal_dirty_metadata(handle, sbi->s_sbh)) {
+		if (buffer_write_io_error(sbh) || !buffer_uptodate(sbh)) {
+			ext4_msg(sbi->s_sb, KERN_ERR, "previous I/O error to "
+				 "superblock detected");
+			clear_buffer_write_io_error(sbh);
+			set_buffer_uptodate(sbh);
+		}
+
+		if (jbd2_journal_dirty_metadata(handle, sbh)) {
 			jbd2_journal_stop(handle);
 			goto write_directly;
 		}
@@ -1245,8 +1257,8 @@ static void ext4_put_super(struct super_block *sb)
 	ext4_xattr_destroy_cache(sbi->s_ea_block_cache);
 	sbi->s_ea_block_cache = NULL;
 
-	if (sbi->s_mmp_tsk)
-		kthread_stop(sbi->s_mmp_tsk);
+	ext4_stop_mmpd(sbi);
+
 	brelse(sbi->s_sbh);
 	sb->s_fs_info = NULL;
 	/*
@@ -1982,6 +1994,9 @@ static const struct mount_opts {
 	 MOPT_NO_EXT2 | MOPT_DATAJ},
 	{Opt_user_xattr, EXT4_MOUNT_XATTR_USER, MOPT_SET},
 	{Opt_nouser_xattr, EXT4_MOUNT_XATTR_USER, MOPT_CLEAR},
+#ifndef ASUSTOR_PATCH_ASACL
+	/* Patch purpose: ASACL */
+
 #ifdef CONFIG_EXT4_FS_POSIX_ACL
 	{Opt_acl, EXT4_MOUNT_POSIX_ACL, MOPT_SET},
 	{Opt_noacl, EXT4_MOUNT_POSIX_ACL, MOPT_CLEAR},
@@ -1989,6 +2004,8 @@ static const struct mount_opts {
 	{Opt_acl, 0, MOPT_NOSUPPORT},
 	{Opt_noacl, 0, MOPT_NOSUPPORT},
 #endif
+
+#endif /* ASUSTOR_PATCH_ASACL */
 	{Opt_nouid32, EXT4_MOUNT_NO_UID32, MOPT_SET},
 	{Opt_debug, EXT4_MOUNT_DEBUG, MOPT_SET},
 	{Opt_debug_want_extra_isize, 0, MOPT_GTE0},
@@ -3101,8 +3118,15 @@ static void ext4_orphan_cleanup(struct super_block *sb,
 			inode_lock(inode);
 			truncate_inode_pages(inode->i_mapping, inode->i_size);
 			ret = ext4_truncate(inode);
-			if (ret)
+			if (ret) {
+				/*
+				 * We need to clean up the in-core orphan list
+				 * manually if ext4_truncate() failed to get a
+				 * transaction handle.
+				 */
+				ext4_orphan_del(NULL, inode);
 				ext4_std_error(inode->i_sb, ret);
+			}
 			inode_unlock(inode);
 			nr_truncates++;
 		} else {
@@ -3677,6 +3701,13 @@ static ext4_group_t ext4_has_uninit_itable(struct super_block *sb)
 	return group;
 }
 
+#ifdef ASUSTOR_PATCH
+extern unsigned int ext4_uninit_itable_check(struct super_block *sb)
+{
+	return 0;
+}
+#endif ///ASUSTOR_PATCH
+
 static int ext4_li_info_new(void)
 {
 	struct ext4_lazy_init *eli = NULL;
@@ -3781,6 +3812,13 @@ out:
 		kfree(elr);
 	return ret;
 }
+
+#ifdef ASUSTOR_PATCH
+extern int ext4_register_li_thread(struct super_block *sb)
+{
+	return 0;
+}
+#endif ///ASUSTOR_PATCH
 
 /*
  * We do not need to lock anything since this is called on
@@ -4153,9 +4191,11 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 		set_opt(sb, NO_UID32);
 	/* xattr user namespace & acls are now defaulted on */
 	set_opt(sb, XATTR_USER);
+
 #ifdef CONFIG_EXT4_FS_POSIX_ACL
 	set_opt(sb, POSIX_ACL);
 #endif
+
 	if (ext4_has_feature_fast_commit(sb))
 		set_opt2(sb, JOURNAL_FAST_COMMIT);
 	/* don't forget to enable journal_csum when metadata_csum is enabled. */
@@ -4359,9 +4399,6 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	} else {
 		sb->s_iflags |= SB_I_CGROUPWB;
 	}
-
-	sb->s_flags = (sb->s_flags & ~SB_POSIXACL) |
-		(test_opt(sb, POSIX_ACL) ? SB_POSIXACL : 0);
 
 	if (le32_to_cpu(es->s_rev_level) == EXT4_GOOD_OLD_REV &&
 	    (ext4_has_compat_features(sb) ||
@@ -5036,6 +5073,14 @@ no_journal:
 		err = percpu_counter_init(&sbi->s_freeinodes_counter, freei,
 					  GFP_KERNEL);
 	}
+	/*
+	 * Update the checksum after updating free space/inode
+	 * counters.  Otherwise the superblock can have an incorrect
+	 * checksum in the buffer cache until it is written out and
+	 * e2fsprogs programs trying to open a file system immediately
+	 * after it is mounted can fail.
+	 */
+	ext4_superblock_csum_set(sb);
 	if (!err)
 		err = percpu_counter_init(&sbi->s_dirs_counter,
 					  ext4_count_dirs(sb), GFP_KERNEL);
@@ -5058,6 +5103,7 @@ no_journal:
 			ext4_msg(sb, KERN_ERR,
 			       "unable to initialize "
 			       "flex_bg meta info!");
+			ret = -ENOMEM;
 			goto failed_mount6;
 		}
 
@@ -5186,8 +5232,7 @@ failed_mount3a:
 failed_mount3:
 	flush_work(&sbi->s_error_work);
 	del_timer_sync(&sbi->s_err_report);
-	if (sbi->s_mmp_tsk)
-		kthread_stop(sbi->s_mmp_tsk);
+	ext4_stop_mmpd(sbi);
 failed_mount2:
 	rcu_read_lock();
 	group_desc = rcu_dereference(sbi->s_group_desc);
@@ -5940,6 +5985,7 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 	if (ext4_test_mount_flag(sb, EXT4_MF_FS_ABORTED))
 		ext4_abort(sb, EXT4_ERR_ESHUTDOWN, "Abort forced by user");
 
+	/* Patch purpose: ASACL */
 	sb->s_flags = (sb->s_flags & ~SB_POSIXACL) |
 		(test_opt(sb, POSIX_ACL) ? SB_POSIXACL : 0);
 
@@ -5989,8 +6035,6 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 				 */
 				ext4_mark_recovery_complete(sb, es);
 			}
-			if (sbi->s_mmp_tsk)
-				kthread_stop(sbi->s_mmp_tsk);
 		} else {
 			/* Make sure we can mount this feature set readwrite */
 			if (ext4_has_feature_readonly(sb) ||
@@ -6104,6 +6148,9 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 	if (!test_opt(sb, BLOCK_VALIDITY) && sbi->s_system_blks)
 		ext4_release_system_zone(sb);
 
+	if (!ext4_has_feature_mmp(sb) || sb_rdonly(sb))
+		ext4_stop_mmpd(sbi);
+
 	/*
 	 * Some options can be enabled by ext4 and/or by VFS mount flag
 	 * either way we need to make sure it matches in both *flags and
@@ -6137,6 +6184,8 @@ restore_opts:
 	for (i = 0; i < EXT4_MAXQUOTAS; i++)
 		kfree(to_free[i]);
 #endif
+	if (!ext4_has_feature_mmp(sb) || sb_rdonly(sb))
+		ext4_stop_mmpd(sbi);
 	kfree(orig_data);
 	return err;
 }

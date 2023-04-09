@@ -1,0 +1,71 @@
+Index: include/net/esp.h
+===================================================================
+--- include/net/esp.h	(revision 78)
++++ include/net/esp.h	(revision 79)
+@@ -4,6 +4,8 @@
+ 
+ #include <linux/skbuff.h>
+ 
++#define ESP_SKB_FRAG_MAXSIZE (PAGE_SIZE << SKB_FRAG_PAGE_ORDER)
++
+ struct ip_esp_hdr;
+ 
+ static inline struct ip_esp_hdr *ip_esp_hdr(const struct sk_buff *skb)
+Index: include/net/sock.h
+===================================================================
+--- include/net/sock.h	(revision 78)
++++ include/net/sock.h	(revision 79)
+@@ -2701,6 +2701,7 @@
+ extern __u32 sysctl_wmem_default;
+ extern __u32 sysctl_rmem_default;
+ 
++#define SKB_FRAG_PAGE_ORDER	get_order(32768)
+ DECLARE_STATIC_KEY_FALSE(net_high_order_alloc_disable_key);
+ 
+ static inline int sk_get_wmem0(const struct sock *sk, const struct proto *proto)
+Index: net/ipv4/esp4.c
+===================================================================
+--- net/ipv4/esp4.c	(revision 78)
++++ net/ipv4/esp4.c	(revision 79)
+@@ -448,6 +448,7 @@
+ 	struct page *page;
+ 	struct sk_buff *trailer;
+ 	int tailen = esp->tailen;
++	unsigned int allocsz;
+ 
+ 	/* this is non-NULL only with TCP/UDP Encapsulation */
+ 	if (x->encap) {
+@@ -457,6 +458,10 @@
+ 			return err;
+ 	}
+ 
++	allocsz = ALIGN(skb->data_len + tailen, L1_CACHE_BYTES);
++	if (allocsz > ESP_SKB_FRAG_MAXSIZE)
++		goto cow;
++
+ 	if (!skb_cloned(skb)) {
+ 		if (tailen <= skb_tailroom(skb)) {
+ 			nfrags = 1;
+Index: net/ipv6/esp6.c
+===================================================================
+--- net/ipv6/esp6.c	(revision 78)
++++ net/ipv6/esp6.c	(revision 79)
+@@ -483,6 +483,7 @@
+ 	struct page *page;
+ 	struct sk_buff *trailer;
+ 	int tailen = esp->tailen;
++	unsigned int allocsz;
+ 
+ 	if (x->encap) {
+ 		int err = esp6_output_encap(x, skb, esp);
+@@ -491,6 +492,10 @@
+ 			return err;
+ 	}
+ 
++	allocsz = ALIGN(skb->data_len + tailen, L1_CACHE_BYTES);
++	if (allocsz > ESP_SKB_FRAG_MAXSIZE)
++		goto cow;
++
+ 	if (!skb_cloned(skb)) {
+ 		if (tailen <= skb_tailroom(skb)) {
+ 			nfrags = 1;

@@ -71,6 +71,7 @@
 
 #include "tg3.h"
 
+
 /* Functions & macros to verify TG3_FLAGS types */
 
 static inline int _tg3_flag(enum TG3_FLAGS flag, unsigned long *bits)
@@ -8966,14 +8967,12 @@ static void tg3_restore_pci_state(struct tg3 *tp)
 	pci_write_config_dword(tp->pdev, TG3PCI_PCISTATE, val);
 
 	pci_write_config_word(tp->pdev, PCI_COMMAND, tp->pci_cmd);
-
 	if (!tg3_flag(tp, PCI_EXPRESS)) {
 		pci_write_config_byte(tp->pdev, PCI_CACHE_LINE_SIZE,
 				      tp->pci_cacheline_sz);
 		pci_write_config_byte(tp->pdev, PCI_LATENCY_TIMER,
 				      tp->pci_lat_timer);
 	}
-
 	/* Make sure PCI-X relaxed ordering bit is clear. */
 	if (tg3_flag(tp, PCIX_MODE)) {
 		u16 pcix_cmd;
@@ -9208,7 +9207,6 @@ static int tg3_chip_reset(struct tg3 *tp)
 		if (!tg3_flag(tp, CPMU_PRESENT))
 			val16 |= PCI_EXP_DEVCTL_PAYLOAD;
 		pcie_capability_clear_word(tp->pdev, PCI_EXP_DEVCTL, val16);
-
 		/* Clear error status */
 		pcie_capability_write_word(tp->pdev, PCI_EXP_DEVSTA,
 				      PCI_EXP_DEVSTA_CED |
@@ -14241,7 +14239,6 @@ static int tg3_change_mtu(struct net_device *dev, int new_mtu)
 	struct tg3 *tp = netdev_priv(dev);
 	int err;
 	bool reset_phy = false;
-
 	if (!netif_running(dev)) {
 		/* We'll just catch it later when the
 		 * device is up'd.
@@ -16452,7 +16449,6 @@ static int tg3_get_invariants(struct tg3 *tp, const struct pci_device_id *ent)
 		u16 lnkctl;
 
 		tg3_flag_set(tp, PCI_EXPRESS);
-
 		pcie_capability_read_word(tp->pdev, PCI_EXP_LNKCTL, &lnkctl);
 		if (lnkctl & PCI_EXP_LNKCTL_CLKREQ_EN) {
 			if (tg3_asic_rev(tp) == ASIC_REV_5906) {

@@ -1,0 +1,13 @@
+Index: fs/fs_context.c
+===================================================================
+--- fs/fs_context.c	(revision 71)
++++ fs/fs_context.c	(revision 72)
+@@ -530,7 +530,7 @@
+ 			      param->key);
+ 	}
+ 
+-	if (len > PAGE_SIZE - 2 - size)
++	if (size + len + 2 > PAGE_SIZE)
+ 		return invalf(fc, "VFS: Legacy: Cumulative options too large");
+ 	if (strchr(param->key, ',') ||
+ 	    (param->type == fs_value_is_string &&

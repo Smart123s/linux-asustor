@@ -861,7 +861,11 @@ void rcu_read_unlock_strict(void)
 	rcu_report_qs_rdp(rdp);
 	udelay(rcu_unlock_delay);
 }
+#ifndef	ASUSTOR_PATCH_FSNOTIFY
 EXPORT_SYMBOL_GPL(rcu_read_unlock_strict);
+#else	//ASUSTOR_PATCH_FSNOTIFY
+EXPORT_SYMBOL(rcu_read_unlock_strict);
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 /*
  * Tell them what RCU they are running.
@@ -2995,17 +2999,17 @@ static void noinstr rcu_dynticks_task_exit(void)
 /* Turn on heavyweight RCU tasks trace readers on idle/user entry. */
 static void rcu_dynticks_task_trace_enter(void)
 {
-#ifdef CONFIG_TASKS_RCU_TRACE
+#ifdef CONFIG_TASKS_TRACE_RCU
 	if (IS_ENABLED(CONFIG_TASKS_TRACE_RCU_READ_MB))
 		current->trc_reader_special.b.need_mb = true;
-#endif /* #ifdef CONFIG_TASKS_RCU_TRACE */
+#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 }
 
 /* Turn off heavyweight RCU tasks trace readers on idle/user exit. */
 static void rcu_dynticks_task_trace_exit(void)
 {
-#ifdef CONFIG_TASKS_RCU_TRACE
+#ifdef CONFIG_TASKS_TRACE_RCU
 	if (IS_ENABLED(CONFIG_TASKS_TRACE_RCU_READ_MB))
 		current->trc_reader_special.b.need_mb = false;
-#endif /* #ifdef CONFIG_TASKS_RCU_TRACE */
+#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 }

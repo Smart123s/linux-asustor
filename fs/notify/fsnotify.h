@@ -2,6 +2,10 @@
 #ifndef __FS_NOTIFY_FSNOTIFY_H_
 #define __FS_NOTIFY_FSNOTIFY_H_
 
+//#ifdef	//ASUSTOR_PATCH_FSNOTIFY
+#ifndef	ASUSTOR_FSNOTIFY_ONLY
+//#endif	//ASUSTOR_PATCH_FSNOTIFY
+
 #include <linux/list.h>
 #include <linux/fsnotify.h>
 #include <linux/srcu.h>
@@ -66,5 +70,41 @@ extern struct fsnotify_event_holder *fsnotify_alloc_event_holder(void);
 extern void fsnotify_destroy_event_holder(struct fsnotify_event_holder *holder);
 
 extern struct kmem_cache *fsnotify_mark_connector_cachep;
+
+//#ifdef	//ASUSTOR_PATCH_FSNOTIFY
+#endif	//ASUSTOR_FSNOTIFY_ONLY
+//#endif	//ASUSTOR_PATCH_FSNOTIFY
+
+
+#ifdef	ASUSTOR_PATCH_FSNOTIFY
+
+#define	FS_AS_MASK						0x00F00000			/* ASUSTOR fsnotify event mask */
+
+#define	FS_AS_CREATE					0x00100000			/* File was accessed */
+#define	FS_AS_UNLINK					0x00200000			/* File was unlinked */
+#define	FS_AS_MOVE_FROM					0x00300000			/* File was moved from X */
+#define	FS_AS_MOVE_TO					0x00400000			/* File was moved to Y */
+#define	FS_AS_LINK_FROM					0x00500000			/* File was linked from X */
+#define	FS_AS_LINK_TO					0x00600000			/* File was linked to Y */
+
+#define	FS_AS_TRUNCATE					0x00A00000			/* File size was truncated */
+#define	FS_AS_TIME_MODIFY				0x00B00000			/* File time was modified */
+#define	FS_AS_MODE_MODIFY				0x00C00000			/* File mode was modified */
+#define	FS_AS_OWNER_MODIFY				0x00D00000			/* File owner was modified */
+
+#define	FS_AS_XATTR_ACCESS				0x00E00000			/* File xattr was accessed */
+#define	FS_AS_XATTR_MODIFY				0x00F00000			/* File time was modified */
+
+// redefine constant and function if fsnotify_backend.h is not included (for fs/utimes.c)
+#ifndef	FS_ISDIR
+#define FS_ISDIR						0x40000000			/* event occurred against dir */
+#define FSNOTIFY_EVENT_PATH				1
+
+//extern int fsnotify(struct inode *to_tell, __u32 mask, const void *data, int data_is, const struct qstr *file_name, u32 cookie);
+extern int fsnotify(__u32 mask, const void *data, int data_type, struct inode *dir, const struct qstr *name, struct inode *inode, u32 cookie);
+
+#endif
+
+#endif	//ASUSTOR_PATCH_FSNOTIFY
 
 #endif	/* __FS_NOTIFY_FSNOTIFY_H_ */

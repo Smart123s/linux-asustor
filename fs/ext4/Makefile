@@ -17,3 +17,5 @@ ext4-$(CONFIG_EXT4_FS_SECURITY)		+= xattr_security.o
 ext4-inode-test-objs			+= inode-test.o
 obj-$(CONFIG_EXT4_KUNIT_TESTS)		+= ext4-inode-test.o
 ext4-$(CONFIG_FS_VERITY)		+= verity.o
+# Patch purpose: ASACL
+ext4-$(CONFIG_EXT4_FS_ASACL)		+= asacl_ext4.o

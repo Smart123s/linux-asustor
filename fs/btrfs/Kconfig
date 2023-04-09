@@ -18,6 +18,8 @@ config BTRFS_FS
 	select RAID6_PQ
 	select XOR_BLOCKS
 	select SRCU
+	depends on !PPC_256K_PAGES	# powerpc
+	depends on !PAGE_SIZE_256KB	# hexagon
 
 	help
 	  Btrfs is a general purpose copy-on-write filesystem with extents,
@@ -106,3 +108,10 @@ config BTRFS_FS_REF_VERIFY
 	  reference problems or verifying they didn't break something.
 
 	  If unsure, say N.
+
+config BTRFS_FS_ASACL
+	bool "BTRFS ASACL"
+	depends on BTRFS_FS
+	select FS_ASACL
+	help
+	  ASACL for Btrfs, added by clko.

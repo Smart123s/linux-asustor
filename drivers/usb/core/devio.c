@@ -1133,7 +1133,7 @@ static int do_proc_control(struct usb_dev_state *ps,
 		"wIndex=%04x wLength=%04x\n",
 		ctrl->bRequestType, ctrl->bRequest, ctrl->wValue,
 		ctrl->wIndex, ctrl->wLength);
-	if (ctrl->bRequestType & 0x80) {
+	if ((ctrl->bRequestType & USB_DIR_IN) && ctrl->wLength) {
 		pipe = usb_rcvctrlpipe(dev, 0);
 		snoop_urb(dev, NULL, pipe, ctrl->wLength, tmo, SUBMIT, NULL, 0);
 
@@ -2503,7 +2503,6 @@ static long usbdev_do_ioctl(struct file *file, unsigned int cmd,
 		return -EPERM;
 
 	usb_lock_device(dev);
-
 	/* Reap operations are allowed even after disconnection */
 	switch (cmd) {
 	case USBDEVFS_REAPURB:
@@ -2764,13 +2763,49 @@ static void usbdev_remove(struct usb_device *udev)
 	mutex_unlock(&usbfs_mutex);
 }
 
+#ifdef ASUSTOR_PATCH
+#ifdef CONFIG_USB_DEVICE_CLASS
+static struct class *usb_classdev_class;
+
+static int usb_classdev_add(struct usb_device *dev)
+{
+	struct device *cldev;
+
+	cldev = device_create(usb_classdev_class, &dev->dev, dev->dev.devt,
+			      NULL, "usbdev%d.%d", dev->bus->busnum,
+			      dev->devnum);
+	if (IS_ERR(cldev))
+		return PTR_ERR(cldev);
+	dev->usb_classdev = cldev;
+	return 0;
+}
+
+static void usb_classdev_remove(struct usb_device *dev)
+{
+	if (dev->usb_classdev)
+		device_unregister(dev->usb_classdev);
+}
+
+#else ///CONFIG_USB_DEVICE_CLASS
+#define usb_classdev_add(dev)		0
+#define usb_classdev_remove(dev)	do {} while (0)
+#endif ///CONFIG_USB_DEVICE_CLASS
+#endif ///ASUSTOR_PATCH
+
 static int usbdev_notify(struct notifier_block *self,
 			       unsigned long action, void *dev)
 {
 	switch (action) {
 	case USB_DEVICE_ADD:
+#ifdef ASUSTOR_PATCH
+		if (usb_classdev_add(dev))
+			return NOTIFY_BAD;
+#endif ///ASUSTOR_PATCH
 		break;
 	case USB_DEVICE_REMOVE:
+#ifdef ASUSTOR_PATCH
+		usb_classdev_remove(dev);
+#endif ///ASUSTOR_PATCH
 		usbdev_remove(dev);
 		break;
 	}
@@ -2800,6 +2835,23 @@ int __init usb_devio_init(void)
 		       USB_DEVICE_MAJOR);
 		goto error_cdev;
 	}
+#ifdef ASUSTOR_PATCH
+#ifdef CONFIG_USB_DEVICE_CLASS
+	usb_classdev_class = class_create(THIS_MODULE, "usb_device");
+	if (IS_ERR(usb_classdev_class)) {
+		printk(KERN_ERR "Unable to register usb_device class\n");
+		retval = PTR_ERR(usb_classdev_class);
+		cdev_del(&usb_device_cdev);
+		usb_classdev_class = NULL;
+		goto out;
+	}
+	/* devices of this class shadow the major:minor of their parent
+	 * device, so clear ->dev_kobj to prevent adding duplicate entries
+	 * to /sys/dev
+	 */
+	usb_classdev_class->dev_kobj = NULL;
+#endif ///CONFIG_USB_DEVICE_CLASS
+#endif ///ASUSTOR_PATCH
 	usb_register_notify(&usbdev_nb);
 out:
 	return retval;
@@ -2812,6 +2864,11 @@ error_cdev:
 void usb_devio_cleanup(void)
 {
 	usb_unregister_notify(&usbdev_nb);
+#ifdef ASUSTOR_PATCH	
+#ifdef CONFIG_USB_DEVICE_CLASS
+	class_destroy(usb_classdev_class);
+#endif ///CONFIG_USB_DEVICE_CLASS
+#endif ///ASUSTOR_PATCH
 	cdev_del(&usb_device_cdev);
 	unregister_chrdev_region(USB_DEVICE_DEV, USB_DEVICE_MAX);
 }
